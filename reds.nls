@@ -3,6 +3,12 @@
 ;; le code de l'equipe rouge basique
 ;; préfixe : red-team
 ;;
+;; mem0 et mem1 : coordonnees d'une cible
+;; mem5 : indique si le robot a ou non une cible sélectionnée
+;; mem4 : indique si un harvester est en mode retour à la base
+;; mem6 : le nb de harvesters à créer
+;; mem7 : le nb de rocket-launchers à créer
+;; mem8 : le nb d'explorers à créer
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to red-team-ask-for-energy [ b n ]
@@ -15,15 +21,16 @@ to red-team-go-back-to-base
     let b min-one-of my-bases [ distance myself ]
     if (b != nobody) [
       ifelse (distance b <= 2)
-      [ 
+      [ ;;  ask for/give resources 
         if (carrying-food? > 1000) [ give-food b carrying-food? ]
         if (energy < 500) [ red-team-ask-for-energy b 500 ]
         if ((Breed = RocketLaunchers) and (nb-missiles = 0)) [
           red-team-ask-for-energy b 500
-          new-missile 6
+          new-missile 7
         ]
+        set mem4 0
       ]
-      [
+      [ ;;  head to base 
         set heading towards b - 20 + random 40
         if count turtles in-cone 2 90 with [ (breed != Burgers) and (breed != Perceptions) ] != 1 [ rt random 90 ]
         forward-move speed
@@ -149,8 +156,8 @@ to goRedHarvester
       ;; détermine la distance de la base la plus proche
       let b min-one-of my-bases [ distance myself ]
       if (b != nobody) [
-        ;; si le robot est à moins de 10 de la base
-        if (distance b < 30)
+        ;; si le robot est à moins de 30 de la base
+        if (distance b < 10)
           [ plant-seeds color max-seeds ]
       ]
     ]
@@ -163,10 +170,27 @@ end
 
 to goRedBase
   set label energy
-  if (energy > 12000) [ new-RocketLauncher self ]
-  let t one-of perceive-specific-robots ennemy rocketlaunchers
-  if (t != nobody) [
-    launch-rocket towards t
+  ;; crée un nouveau robot si il reste des demandes de création dans le pipe (mem6, mem7 ou mem8)
+  ifelse (mem7 > 0) [ new-RocketLauncher self set mem7 mem7 - 1 ]
+  [ ifelse (mem6 > 0) [ new-Harvester  self set mem6 mem6 - 1 ]
+  [ if (mem8 > 0) [ new-Explorer self set mem8 mem8 - 1 ]]]
+  
+  if (nb-missiles < 10) and (energy > 1000) [ new-missile 50 ]
+  if (nb-fafs < 10) and (energy > 1000) [ new-faf 10 ]
+  if (energy > 12000) [ ifelse (random 2 = 0) [ set mem8 mem8 + 1 ][ifelse (random 4 = 0) [ set mem7 mem7 + 1 ][ set mem6 mem6 + 1 ]]]
+  
+  ;; detect enemies of all type
+  let r one-of perceive-specific-robots ennemy rocketlaunchers
+  let h one-of perceive-specific-robots ennemy harvesters
+  let ex one-of perceive-specific-robots ennemy explorers
+ 
+  ifelse r != nobody
+  [ launch-rocket towards r ] 
+  [ ifelse h != nobody 
+    [ launch-rocket towards h ] 
+    [if ex != nobody 
+      [launch-rocket towards ex] 
+    ]
   ]
 end
 
@@ -184,8 +208,8 @@ end
 
 ;; procedure pour initialiser les bases rouges
 to initRedBase
-   ;;new-Explorer self
-   ;;new-RocketLauncher self
-   new-Harvester self
-   set mem6 5
+  new-Harvester self
+  set mem6 4
+  set mem7 2
+  set mem8 2
 end
